@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -133,14 +134,15 @@ func pullBranch(path, branch string) error {
 			return fmt.Errorf("failed to fetch branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
 		}
 
-		cmd = exec.Command("git", "-C", path, "diff", "--name-status", branch+"..origin/"+branch)
+		cmd = exec.Command("git", "-C", path, "diff", "--stat", branch+"..origin/"+branch)
 		output, err = cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("failed to get changes for branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
 		}
 
 		if len(output) > 0 {
-			fmt.Println(string(output))
+			colorizedOutput := colorizeDiffStat(string(output))
+			fmt.Println(colorizedOutput)
 		} else {
 			fmt.Println("No changes")
 		}
@@ -148,12 +150,42 @@ func pullBranch(path, branch string) error {
 		return nil
 	}
 
-	cmd := exec.Command("git", "-C", path, "pull", "origin", branch)
+	// Show the changes made by the pull operation
+	cmd := exec.Command("git", "-C", path, "diff", "--stat", branch+"..origin/"+branch)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to pull branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
+		return fmt.Errorf("failed to get changes made by pull for branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
 	}
 
-	fmt.Printf("Successfully pulled branch '%s' in repository '%s'\n", branch, path)
+	if len(output) > 0 {
+		fmt.Println("Changes made by pull:")
+		colorizedOutput := colorizeDiffStat(string(output))
+		fmt.Println(colorizedOutput)
+
+		cmd = exec.Command("git", "-C", path, "pull")
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to pull branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
+		}
+
+		fmt.Printf(color.GreenString("Successfully pulled branch '%s' in repository '%s'\n\n", branch, path))
+	} else {
+		fmt.Println(color.GreenString("No changes made by pull\n"))
+	}
+
 	return nil
+}
+
+func colorizeDiffStat(output string) string {
+	statColor := color.New(color.FgGreen).SprintFunc()
+	addedColor := color.New(color.FgGreen).SprintFunc()
+	removedColor := color.New(color.FgRed).SprintFunc()
+	renamedColor := color.New(color.FgYellow).SprintFunc()
+
+	output = strings.ReplaceAll(output, "|", statColor("|"))
+	output = strings.ReplaceAll(output, "+", addedColor("+"))
+	output = strings.ReplaceAll(output, "-", removedColor("-"))
+	output = strings.ReplaceAll(output, ">", renamedColor(">"))
+
+	return output
 }
