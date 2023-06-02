@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,46 +25,58 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var pullCmd = &cobra.Command{
-	Use:   "pull",
-	Short: "Pull all or specified branches",
-	Long:  "Pull all or comma-separated list of branches",
-	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		pull := args[0]
-		dir, _ := cmd.Flags().GetString("dir")
+var (
+	pullCmd *cobra.Command
+	dryRun  bool
+)
 
-		if dir == "" {
-			// Use current working directory if --dir flag is not specified
-			dir, _ = os.Getwd()
-		} else {
-			_, err := os.Stat(dir)
-			if os.IsNotExist(err) {
-				fmt.Printf("Directory '%s' does not exist\n", dir)
-				os.Exit(1)
-			}
-		}
+func init() {
+	pullCmd = &cobra.Command{
+		Use:   "pull",
+		Short: "Pull all or specified branches",
+		Long:  "Pull all or comma-separated list of branches",
+		Args:  cobra.ExactArgs(1),
+		Run:   runPull,
+	}
 
-		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
+	pullCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Perform a dry run without actually pulling the changes")
+	pullCmd.Flags().StringP("dir", "d", "", "Directory to perform the pull operation")
+}
 
-			if info.IsDir() && isGitRepository(path) {
-				err := pullRepository(path, pull)
-				if err != nil {
-					fmt.Printf("Error pulling repository '%s': %s\n", path, err)
-				}
-			}
+func runPull(cmd *cobra.Command, args []string) {
+	pull := args[0]
+	dir, _ := cmd.Flags().GetString("dir")
 
-			return nil
-		})
-
-		if err != nil {
-			fmt.Println("Error:", err)
+	if dir == "" {
+		// Use current working directory if --dir flag is not specified
+		dir, _ = os.Getwd()
+	} else {
+		_, err := os.Stat(dir)
+		if os.IsNotExist(err) {
+			fmt.Printf("Directory '%s' does not exist\n", dir)
 			os.Exit(1)
 		}
-	},
+	}
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() && isGitRepository(path) {
+			err := pullRepository(path, pull)
+			if err != nil {
+				fmt.Printf("Error pulling repository '%s': %s\n", path, err)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		fmt.Println("Error:", err)
+		os.Exit(1)
+	}
 }
 
 func isGitRepository(path string) bool {
@@ -111,20 +122,38 @@ func pullAllBranches(path string) error {
 }
 
 func pullBranch(path, branch string) error {
-	log.Printf("Pulling branch '%s' in repository '%s'\n", branch, path)
+	fmt.Printf("Pulling branch '%s' in repository '%s'\n", branch, path)
+
+	if dryRun {
+		fmt.Printf("Dry run: Changes for branch '%s' in repository '%s':\n", branch, path)
+
+		cmd := exec.Command("git", "-C", path, "fetch", "origin", branch)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to fetch branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
+		}
+
+		cmd = exec.Command("git", "-C", path, "diff", "--name-status", branch+"..origin/"+branch)
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to get changes for branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
+		}
+
+		if len(output) > 0 {
+			fmt.Println(string(output))
+		} else {
+			fmt.Println("No changes")
+		}
+
+		return nil
+	}
 
 	cmd := exec.Command("git", "-C", path, "pull", "origin", branch)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to pull branch '%s': %s", branch, string(output))
+		return fmt.Errorf("failed to pull branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
 	}
 
-	log.Printf("Branch '%s' pulled successfully in repository '%s'\n", branch, path)
-
+	fmt.Printf("Successfully pulled branch '%s' in repository '%s'\n", branch, path)
 	return nil
-}
-
-func init() {
-	var dir string
-	pullCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory to perform the pull operation")
 }
