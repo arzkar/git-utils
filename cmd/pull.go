@@ -141,7 +141,7 @@ func pullBranch(path, branch string) error {
 		}
 
 		if len(output) > 0 {
-			colorizedOutput := colorizeDiffStat(string(output))
+			colorizedOutput := utils.colorizeDiffStat(string(output))
 			fmt.Println(colorizedOutput)
 		} else {
 			fmt.Println("No changes")
@@ -159,7 +159,7 @@ func pullBranch(path, branch string) error {
 
 	if len(output) > 0 {
 		fmt.Println("Changes made by pull:")
-		colorizedOutput := colorizeDiffStat(string(output))
+		colorizedOutput := utils.colorizeDiffStat(string(output))
 		fmt.Println(colorizedOutput)
 
 		cmd = exec.Command("git", "-C", path, "pull")
@@ -174,18 +174,4 @@ func pullBranch(path, branch string) error {
 	}
 
 	return nil
-}
-
-func colorizeDiffStat(output string) string {
-	statColor := color.New(color.FgGreen).SprintFunc()
-	addedColor := color.New(color.FgGreen).SprintFunc()
-	removedColor := color.New(color.FgRed).SprintFunc()
-	renamedColor := color.New(color.FgYellow).SprintFunc()
-
-	output = strings.ReplaceAll(output, "|", statColor("|"))
-	output = strings.ReplaceAll(output, "+", addedColor("+"))
-	output = strings.ReplaceAll(output, "-", removedColor("-"))
-	output = strings.ReplaceAll(output, ">", renamedColor(">"))
-
-	return output
 }
