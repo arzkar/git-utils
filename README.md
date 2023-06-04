@@ -5,10 +5,10 @@ A command-line tool that provides various utilities for working with Git reposit
 
 ## Features
 
-- `pull`: Pull branches from multiple repositories.
-- `fetch`: Fetch branches from multiple repositories.
+- `pull`: Pull branches for all the repositories at once.
+- `fetch`: Fetch branches for all the repositories at once.
 - `grep`: Search for a pattern in file contents across multiple repositories.
-- `checkout`: Checkout a branch in multiple repositories.
+- `checkout`: Checkout a branch for all the repositories at once.
 
 # Installation
 
@@ -28,6 +28,7 @@ go install github.com/arzkar/git-utils@latest
 # Usage
 
 ```
+> git-utils
 git-utils v0.2.0
 Copyright (c) Arbaaz Laskar <arzkar.dev@gmail.com>
 
@@ -54,41 +55,46 @@ Use "git-utils [command] --help" for more information about a command.
 
 ## Note
 
-You can specify the optional `--dir` flag to search within a specific directory. By default, the current directory is used.
+- You can specify the optional `--dir` flag to search within a specific directory. By default, the current directory is used.
+
+- For pull & fetch commands, you can specify a single branch, a comma seperated list of branches or all.
 
 ### Pull
 
-The `pull` command allows you to update your local branch with the latest changes from the remote repository.
+The `pull` command allows you to update your local branch with the latest changes for all the repositories at once.
 
 Command:
-git-utils pull <branch>
+`git-utils pull <branch> [--dir=<directory>]`
+
+Example:
+`git-utils pull main,devel`
 
 ### Fetch
 
-The `fetch` command fetches the latest changes from the remote repository. You can specify either a single branch or "all" to fetch all branches.
+The `fetch` command fetches the latest changes for all the repositories at once.
 
 Command:
-git-utils fetch <branch>
+`git-utils fetch <branch> [--dir=<directory>]`
 
 Example:
-git-utils fetch feature-branch
+`git-utils fetch feature-branch`
 
 ### Checkout
 
-The `checkout` command allows you to switch between branches in a Git repository.
+The `checkout` command allows you to switch between branches for all the repositories at once.
 
 Command:
-git-utils checkout <branch>
+`git-utils checkout <branch> [--dir=<directory>]`
 
 Example:
-git-utils checkout develop
+`git-utils checkout develop`
 
 ### Grep
 
-The `grep` command searches for a specified pattern in the files of a Git repository.
+The `grep` command searches for a specified pattern in the files of all the repositories at once.
 
 Command:
-git-utils grep <pattern> [--dir=<directory>]
+`git-utils grep <pattern> [--dir=<directory>]`
 
 Example:
-git-utils grep "TODO"
+`git-utils grep "TODO"`
