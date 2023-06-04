@@ -24,7 +24,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "git-utils",
 	Short: "A CLI for performing various operations on git repositories",
-	Long: `git-utils v0.1
+	Long: `git-utils v0.2.0
 Copyright (c) Arbaaz Laskar <arzkar.dev@gmail.com>
 
 A CLI for performing various operations on git repositories
