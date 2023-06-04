@@ -60,6 +60,8 @@ func runGrep(cmd *cobra.Command, args []string) {
 		}
 	}
 
+	foundMatch := false
+
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -90,6 +92,7 @@ func runGrep(cmd *cobra.Command, args []string) {
 			for scanner.Scan() {
 				line := scanner.Text()
 				if strings.Contains(line, pattern) {
+					foundMatch = true
 					line = strings.ReplaceAll(line, pattern, color.RedString(pattern))
 					fmt.Printf("\n%s\nL%d: %s\n", relPath, lineNumber, line)
 				}
@@ -112,5 +115,9 @@ func runGrep(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)
+	}
+
+	if !foundMatch {
+		fmt.Println("No matches found.")
 	}
 }
