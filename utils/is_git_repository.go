@@ -13,27 +13,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package utils
 
 import (
 	"os"
-
-	"github.com/spf13/cobra"
+	"path/filepath"
 )
 
-var rootCmd = &cobra.Command{
-	Use:   "git-utils",
-	Short: "A CLI for performing various operations on git repositories",
-	Long: `git-utils v0.2.0
-Copyright (c) Arbaaz Laskar <arzkar.dev@gmail.com>
-
-A CLI for performing various operations on git repositories
-`,
-}
-
-func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		os.Exit(1)
-	}
+func IsGitRepository(path string) bool {
+	_, err := os.Stat(filepath.Join(path, ".git"))
+	return err == nil
 }

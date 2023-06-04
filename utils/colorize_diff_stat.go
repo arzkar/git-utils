@@ -13,27 +13,24 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package utils
 
 import (
-	"os"
+	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/fatih/color"
 )
 
-var rootCmd = &cobra.Command{
-	Use:   "git-utils",
-	Short: "A CLI for performing various operations on git repositories",
-	Long: `git-utils v0.2.0
-Copyright (c) Arbaaz Laskar <arzkar.dev@gmail.com>
+func ColorizeDiffStat(output string) string {
+	statColor := color.New(color.FgGreen).SprintFunc()
+	addedColor := color.New(color.FgGreen).SprintFunc()
+	removedColor := color.New(color.FgRed).SprintFunc()
+	renamedColor := color.New(color.FgYellow).SprintFunc()
 
-A CLI for performing various operations on git repositories
-`,
-}
+	output = strings.ReplaceAll(output, "|", statColor("|"))
+	output = strings.ReplaceAll(output, "+", addedColor("+"))
+	output = strings.ReplaceAll(output, "-", removedColor("-"))
+	output = strings.ReplaceAll(output, ">", renamedColor(">"))
 
-func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		os.Exit(1)
-	}
+	return output
 }
