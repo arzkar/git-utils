@@ -28,10 +28,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	pullCmd *cobra.Command
-	dryRun  bool
-)
+var pullCmd *cobra.Command
 
 func init() {
 	pullCmd = &cobra.Command{
@@ -42,13 +39,17 @@ func init() {
 		Run:   runPull,
 	}
 
+	var dryRun bool
 	pullCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Perform a dry run without actually pulling the changes")
 	pullCmd.Flags().StringP("dir", "d", "", "Directory to perform the pull operation")
+
+	rootCmd.AddCommand(pullCmd)
 }
 
 func runPull(cmd *cobra.Command, args []string) {
 	pull := args[0]
 	dir, _ := cmd.Flags().GetString("dir")
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
 	if dir == "" {
 		// Use current working directory if --dir flag is not specified
@@ -67,7 +68,7 @@ func runPull(cmd *cobra.Command, args []string) {
 		}
 
 		if info.IsDir() && utils.IsGitRepository(path) {
-			err := pullRepository(path, pull)
+			err := pullRepository(path, pull, dryRun)
 			if err != nil {
 				fmt.Printf("Error pulling repository '%s': %s\n", path, err)
 			}
@@ -82,17 +83,16 @@ func runPull(cmd *cobra.Command, args []string) {
 	}
 }
 
-
-func pullRepository(path string, pull string) error {
+func pullRepository(path string, pull string, dryRun bool) error {
 	if pull == "all" {
-		err := pullAllBranches(path)
+		err := pullAllBranches(path, dryRun)
 		if err != nil {
 			return err
 		}
 	} else {
 		branches := strings.Split(pull, ",")
 		for _, branch := range branches {
-			err := pullBranch(path, branch)
+			err := pullBranch(path, branch, dryRun)
 			if err != nil {
 				return err
 			}
@@ -102,16 +102,16 @@ func pullRepository(path string, pull string) error {
 	return nil
 }
 
-func pullAllBranches(path string) error {
+func pullAllBranches(path string, dryRun bool) error {
 	cmd := exec.Command("git", "-C", path, "branch", "--format", "%(refname:short)")
 	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("failed to get local branches: %s", err)
+		return fmt.Errorf("failed to get local branches: %w", err)
 	}
 
 	branches := strings.Split(strings.TrimSpace(string(output)), "\n")
 	for _, branch := range branches {
-		err := pullBranch(path, branch)
+		err := pullBranch(path, branch, dryRun)
 		if err != nil {
 			return err
 		}
@@ -120,39 +120,15 @@ func pullAllBranches(path string) error {
 	return nil
 }
 
-func pullBranch(path, branch string) error {
+func pullBranch(path string, branch string, dryRun bool) error {
 	fmt.Printf("Pulling branch '%s' in repository '%s'\n", branch, path)
-
-	if dryRun {
-		fmt.Printf("Dry run: Changes for branch '%s' in repository '%s':\n", branch, path)
-
-		cmd := exec.Command("git", "-C", path, "fetch", "origin", branch)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("failed to fetch branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
-		}
-
-		cmd = exec.Command("git", "-C", path, "diff", "--stat", branch+"..origin/"+branch)
-		output, err = cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("failed to get changes for branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
-		}
-
-		if len(output) > 0 {
-			colorizedOutput := utils.ColorizeDiffStat(string(output))
-			fmt.Println(colorizedOutput)
-		} else {
-			fmt.Println("No changes")
-		}
-
-		return nil
-	}
+	execDryRun(dryRun, path, branch)
 
 	// Show the changes made by the pull operation
 	cmd := exec.Command("git", "-C", path, "diff", "--stat", branch+"..origin/"+branch)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to get changes made by pull for branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
+		return fmt.Errorf("failed to get changes made by pull for branch '%s' in repository '%s': %w\n%s", branch, path, err, string(output))
 	}
 
 	if len(output) > 0 {
@@ -163,7 +139,7 @@ func pullBranch(path, branch string) error {
 		cmd = exec.Command("git", "-C", path, "pull")
 		output, err = cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("failed to pull branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
+			return fmt.Errorf("failed to pull branch '%s' in repository '%s': %w\n%s", branch, path, err, string(output))
 		}
 
 		fmt.Printf(color.GreenString("Successfully pulled branch '%s' in repository '%s'\n\n", branch, path))
@@ -172,4 +148,33 @@ func pullBranch(path, branch string) error {
 	}
 
 	return nil
+}
+
+func execDryRun(dryRun bool, path string, branch string) {
+	if dryRun {
+		fmt.Printf("Dry run: Changes for branch '%s' in repository '%s':\n", branch, path)
+
+		cmd := exec.Command("git", "-C", path, "fetch", "origin", branch)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("failed to fetch branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
+			os.Exit(1)
+		}
+
+		cmd = exec.Command("git", "-C", path, "diff", "--stat", branch+"..origin/"+branch)
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("failed to get changes for branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
+			os.Exit(1)
+		}
+
+		if len(output) > 0 {
+			colorizedOutput := utils.ColorizeDiffStat(string(output))
+			fmt.Println(colorizedOutput)
+		} else {
+			fmt.Println("No changes")
+		}
+
+		os.Exit(0)
+	}
 }
