@@ -102,6 +102,7 @@ func runGrep(cmd *cobra.Command, args []string) {
 			if err := scanner.Err(); err != nil {
 				if err.Error() == bufio.ErrTooLong.Error() {
 					fmt.Println("Encountered buffer error. Please consider increasing the buffer size.")
+					fmt.Println("To increase the buffer size, use --buffer buffer_size (default: 4096)")
 					os.Exit(1)
 				} else {
 					return err
