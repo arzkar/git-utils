@@ -23,11 +23,11 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "git-utils",
-	Short: "A CLI for various git utils",
+	Short: "A CLI for performing various operations on git repositories",
 	Long: `git-utils v0.1
 Copyright (c) Arbaaz Laskar <arzkar.dev@gmail.com>
 
-A CLI for various git utilities
+A CLI for performing various operations on git repositories
 `,
 }
 

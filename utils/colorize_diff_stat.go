@@ -6,7 +6,7 @@ import (
 	"github.com/fatih/color"
 )
 
-func colorizeDiffStat(output string) string {
+func ColorizeDiffStat(output string) string {
 	statColor := color.New(color.FgGreen).SprintFunc()
 	addedColor := color.New(color.FgGreen).SprintFunc()
 	removedColor := color.New(color.FgRed).SprintFunc()

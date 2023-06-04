@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/arzkar/git-utils/utils"
+
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -64,7 +66,7 @@ func runPull(cmd *cobra.Command, args []string) {
 			return err
 		}
 
-		if info.IsDir() && isGitRepository(path) {
+		if info.IsDir() && utils.IsGitRepository(path) {
 			err := pullRepository(path, pull)
 			if err != nil {
 				fmt.Printf("Error pulling repository '%s': %s\n", path, err)
@@ -80,10 +82,6 @@ func runPull(cmd *cobra.Command, args []string) {
 	}
 }
 
-func isGitRepository(path string) bool {
-	_, err := os.Stat(filepath.Join(path, ".git"))
-	return err == nil
-}
 
 func pullRepository(path string, pull string) error {
 	if pull == "all" {
@@ -141,7 +139,7 @@ func pullBranch(path, branch string) error {
 		}
 
 		if len(output) > 0 {
-			colorizedOutput := utils.colorizeDiffStat(string(output))
+			colorizedOutput := utils.ColorizeDiffStat(string(output))
 			fmt.Println(colorizedOutput)
 		} else {
 			fmt.Println("No changes")
@@ -159,7 +157,7 @@ func pullBranch(path, branch string) error {
 
 	if len(output) > 0 {
 		fmt.Println("Changes made by pull:")
-		colorizedOutput := utils.colorizeDiffStat(string(output))
+		colorizedOutput := utils.ColorizeDiffStat(string(output))
 		fmt.Println(colorizedOutput)
 
 		cmd = exec.Command("git", "-C", path, "pull")
