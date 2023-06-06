@@ -1,6 +1,6 @@
 <h1 align="center">git-utils</h1>
 
-A command-line tool that provides various utilities for working with Git repositories.
+A CLI for performing various bulk operations on git repositories
 <br><br>
 
 ## Features

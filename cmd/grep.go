@@ -16,9 +16,9 @@ limitations under the License.
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -38,16 +38,13 @@ func init() {
 	}
 
 	var dir string
-	var bufferSize int
 	grepCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory to search in")
-	grepCmd.Flags().IntVarP(&bufferSize, "buffer", "b", 4096, "Buffer size for reading files (default: 4096)")
 	rootCmd.AddCommand(grepCmd)
 }
 
 func runGrep(cmd *cobra.Command, args []string) {
 	pattern := args[0]
 	dir, _ := cmd.Flags().GetString("dir")
-	bufferSize, _ := cmd.Flags().GetInt("buffer")
 
 	if dir == "" {
 		// Use current working directory if --dir flag is not specified
@@ -67,45 +64,38 @@ func runGrep(cmd *cobra.Command, args []string) {
 			return err
 		}
 
-		// Skip .git folder
-		if info.IsDir() && info.Name() == ".git" {
-			return filepath.SkipDir
+		// Only process directories
+		if !info.IsDir() {
+			return nil
 		}
 
-		if !info.IsDir() {
-			// Get the relative path from the repository root directory to the file
-			relPath, err := filepath.Rel(dir, path)
-			if err != nil {
-				return err
-			}
+		// Check if the directory contains a .git subdirectory
+		gitDir := filepath.Join(path, ".git")
+		_, err = os.Stat(gitDir)
+		if os.IsNotExist(err) {
+			return nil
+		}
 
-			file, err := os.Open(path)
-			if err != nil {
-				return err
+		// Execute git grep in the git repository
+		cmd := exec.Command("git", "grep", "-n", pattern)
+		cmd.Dir = path
+		output, err := cmd.Output()
+		if err != nil {
+			// Ignore "exit status 1" error when no matches are found
+			if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+				return nil
 			}
-			defer file.Close()
+			return err
+		}
 
-			scanner := bufio.NewScanner(file)
-			buf := make([]byte, bufferSize)
-			scanner.Buffer(buf, bufferSize)
-			lineNumber := 1
-			for scanner.Scan() {
-				line := scanner.Text()
-				if strings.Contains(line, pattern) {
-					foundMatch = true
-					line = strings.ReplaceAll(line, pattern, color.RedString(pattern))
-					fmt.Printf("\n%s\nL%d: %s\n", relPath, lineNumber, line)
-				}
-				lineNumber++
-			}
-
-			if err := scanner.Err(); err != nil {
-				if err.Error() == bufio.ErrTooLong.Error() {
-					fmt.Println("Encountered buffer error. Please consider increasing the buffer size.")
-					fmt.Println("To increase the buffer size, use --buffer buffer_size (default: 4096)")
-					os.Exit(1)
-				} else {
-					return err
+		lines := strings.Split(string(output), "\n")
+		for _, line := range lines {
+			if line != "" {
+				foundMatch = true
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					coloredLine := strings.ReplaceAll(parts[1], pattern, color.RedString(pattern))
+					fmt.Printf("\n%s:\nL%s\n", path, coloredLine)
 				}
 			}
 		}
