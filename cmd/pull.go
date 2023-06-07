@@ -62,12 +62,23 @@ func runPull(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+		// Only process directories
+		if !d.IsDir() {
+			return nil
+		}
 
-		if info.IsDir() && utils.IsGitRepository(path) {
+		// Check if the directory contains a .git subdirectory
+		gitDir := filepath.Join(path, ".git")
+		_, err = os.Stat(gitDir)
+		if os.IsNotExist(err) {
+			return nil
+		}
+
+		if d.IsDir() && utils.IsGitRepository(path) {
 			err := pullRepository(path, pull, dryRun)
 			if err != nil {
 				fmt.Printf("Error pulling repository '%s': %s\n", path, err)

@@ -56,13 +56,23 @@ func runCheckout(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 	}
-
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+		// Only process directories
+		if !d.IsDir() {
+			return nil
+		}
 
-		if info.IsDir() && utils.IsGitRepository(path) {
+		// Check if the directory contains a .git subdirectory
+		gitDir := filepath.Join(path, ".git")
+		_, err = os.Stat(gitDir)
+		if os.IsNotExist(err) {
+			return nil
+		}
+
+		if d.IsDir() && utils.IsGitRepository(path) {
 			err := checkoutBranch(path, branch)
 			if err != nil {
 				fmt.Printf("Error checking out branch '%s' in repository '%s': %s\n", branch, path, err)
