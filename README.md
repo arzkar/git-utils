@@ -1,7 +1,7 @@
 <h1 align="center">git-utils</h1>
 
 A CLI for performing various bulk operations on git repositories
-<br><br>
+<br>
 
 ## Features
 

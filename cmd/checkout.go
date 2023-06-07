@@ -90,7 +90,7 @@ func runCheckout(cmd *cobra.Command, args []string) {
 
 func checkoutBranch(path string, branch string) error {
 	fmt.Printf("Checking out branch '%s' in repository '%s'\n", branch, path)
-	cmd := exec.Command("git", "-C", path, "checkout", branch)
+	cmd := exec.Command("git", "-C", path, "checkout", "--track", fmt.Sprintf("origin/%s", branch))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to checkout branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
