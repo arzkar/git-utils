@@ -32,7 +32,7 @@ const (
 	repoOwner      = "arzkar"
 	repoName       = "git-utils"
 	releasesAPI    = "https://api.github.com/repos/%s/%s/releases/latest"
-	currentVersion = "v0.3.2"
+	currentVersion = "v0.3.3"
 	cacheFile      = "git-utils-cache.json"
 )
 

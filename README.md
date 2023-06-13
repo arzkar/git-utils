@@ -29,7 +29,7 @@ go install github.com/arzkar/git-utils@latest
 
 ```
 > git-utils
-git-utils v0.3.2
+git-utils v0.3.3
 Copyright (c) Arbaaz Laskar <arzkar.dev@gmail.com>
 
 A CLI for performing various operations on git repositories
