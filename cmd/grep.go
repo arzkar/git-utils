@@ -94,7 +94,7 @@ func runGrep(cmd *cobra.Command, args []string) {
 				parts := strings.SplitN(line, ":", 2)
 				if len(parts) == 2 {
 					coloredLine := strings.ReplaceAll(parts[1], pattern, color.RedString(pattern))
-					fmt.Printf("\n%s:\nL%s\n", path, coloredLine)
+					fmt.Printf("\n%s:\nL%s\n", filepath.Join(path, parts[0]), coloredLine)
 				}
 			}
 		}
