@@ -16,24 +16,45 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"os"
 
+	"github.com/arzkar/git-utils/utils"
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "git-utils",
 	Short: "A CLI for performing various operations on git repositories",
-	Long: `git-utils v0.3.3
+	Long: `git-utils v0.4.0
 Copyright (c) Arbaaz Laskar <arzkar.dev@gmail.com>
 
 A CLI for performing various operations on git repositories
 `,
+	Run: runRoot,
+}
+
+var configFlag bool
+
+func init() {
+	rootCmd.Flags().BoolVar(&configFlag, "config", false, "Show app config")
 }
 
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
 		os.Exit(1)
+	}
+}
+
+func runRoot(cmd *cobra.Command, args []string) {
+	if configFlag {
+		// Print app directory and config file path
+		appDir := utils.GetAppDir()
+		configFilePath := utils.GetConfigFilePath()
+		fmt.Println("App Directory:", appDir)
+		fmt.Println("Config File Path:", configFilePath)
+	} else {
+		cmd.Help()
 	}
 }

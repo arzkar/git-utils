@@ -9,6 +9,7 @@ A CLI for performing various bulk operations on git repositories
 - `fetch`: Fetch branches for all the repositories at once.
 - `grep`: Search for a pattern in file contents across multiple repositories.
 - `checkout`: Checkout a branch for all the repositories at once.
+- `tag`: Use custom tag messages for git repositories
 
 # Installation
 
@@ -29,7 +30,7 @@ go install github.com/arzkar/git-utils@latest
 
 ```
 > git-utils
-git-utils v0.3.3
+git-utils v0.4.0
 Copyright (c) Arbaaz Laskar <arzkar.dev@gmail.com>
 
 A CLI for performing various operations on git repositories
@@ -44,9 +45,11 @@ Available Commands:
   grep        Search for a pattern in files
   help        Help about any command
   pull        Pull all or specified branches
+  tag         Create a new tag with custom message for the repository
 
 Flags:
-  -h, --help   help for git-utils
+      --config   Show app config
+  -h, --help     help for git-utils
 
 Use "git-utils [command] --help" for more information about a command.
 ```
@@ -56,6 +59,8 @@ Use "git-utils [command] --help" for more information about a command.
 ## Note
 
 - You can specify the optional `--dir` flag to search within a specific directory. By default, the current directory is used.
+
+- Use the `--config` flag to show the location of the app directory and config file
 
 - For pull & fetch commands, you can specify a single branch, a comma seperated list of branches or all.
 
@@ -98,3 +103,27 @@ Command:
 
 Example:
 `git-utils grep "TODO"`
+
+### Tag
+
+The `tag` command reads the config file and uses custom message for tag
+
+Command:
+`git-utils tag -a <tag_name> -m <custom_message_keyword>`
+
+Example:
+`git-utils tag -a "v0.1.2" -m "changelog"`
+
+Sample `config.json`:
+
+```json
+{
+  "tags": {
+    "messages": {
+      "changelog": "Full changelog: https://github.com/{repo_owner}/{repo_name}/compare/{prevTag}...{newTag}"
+    }
+  }
+}
+```
+
+Tag Templates variables available: `repo_owner, repo_name, prevTag, newTag`
