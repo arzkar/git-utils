@@ -18,10 +18,9 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -32,8 +31,9 @@ const (
 	repoOwner      = "arzkar"
 	repoName       = "git-utils"
 	releasesAPI    = "https://api.github.com/repos/%s/%s/releases/latest"
-	currentVersion = "v0.3.2"
-	cacheFile      = "git-utils-cache.json"
+	currentVersion = "v0.4.0"
+	configFile     = "config.json"
+	updateInterval = 24 * time.Hour
 )
 
 type release struct {
@@ -46,48 +46,51 @@ func init() {
 
 func UpdateChecker() {
 	// Read the cached version and publication time
-	cachedVersion, err := readCachedVersion()
+	cachedConfig, err := ReadConfigFile()
 	if err != nil {
-		fmt.Println("Failed to read cached version:", err)
+		fmt.Println("Failed to read cached config:", err)
+	}
+
+	// Check if the cached version is up-to-date
+	if time.Since(cachedConfig.LastUpdated) < updateInterval {
+		return
 	}
 
 	latestVersion := ""
-	// Check if the cached version is up-to-date
-	if cachedVersion != "" && compareVersions(cachedVersion, currentVersion) >= 0 {
-		latestVersion = cachedVersion
-	} else {
-		url := fmt.Sprintf(releasesAPI, repoOwner, repoName)
-		resp, err := http.Get(url)
-		if err != nil {
-			fmt.Println("Failed to check for new version:", err)
-			return
-		}
-		defer resp.Body.Close()
-
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Println("Failed to read response body:", err)
-			return
-		}
-
-		var rel release
-		err = json.Unmarshal(body, &rel)
-		if err != nil {
-			fmt.Println("Failed to parse response body:", err)
-			return
-		}
-
-		latestVersion = rel.TagName
+	url := fmt.Sprintf(releasesAPI, repoOwner, repoName)
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Println("Failed to check for new version:", err)
+		return
 	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Failed to read response body:", err)
+		return
+	}
+
+	var rel release
+	err = json.Unmarshal(body, &rel)
+	if err != nil {
+		fmt.Println("Failed to parse response body:", err)
+		return
+	}
+
+	latestVersion = rel.TagName
 
 	if compareVersions(latestVersion, currentVersion) > 0 {
 		fmt.Printf(color.RedString("A newer version (%s) of the CLI is available. Please update to the latest version.")+color.GreenString("\nhttps://github.com/arzkar/git-utils#installation\n"), latestVersion)
 	}
 
-	// Cache the latest version and publication time
-	err = cacheVersion(latestVersion, time.Now())
+	// Update the latest version and publication time in the config file
+	err = UpdateConfig(func(config *Config) {
+		config.Version = latestVersion
+		config.LastUpdated = time.Now()
+	})
 	if err != nil {
-		fmt.Println("Failed to cache the version:", err)
+		fmt.Println("Failed to update the config:", err)
 	}
 }
 
@@ -97,70 +100,84 @@ func compareVersions(v1, v2 string) int {
 	return strings.Compare(v1, v2)
 }
 
-func getCacheFilePath() string {
-	// Get the cache directory path
-	cacheDir, err := os.UserCacheDir()
-	if err != nil {
-		panic(err)
+func ParseTemplate(template string, variables map[string]string) string {
+	for key, value := range variables {
+		template = strings.ReplaceAll(template, "{"+key+"}", value)
 	}
-
-	// Ensure the cache directory exists
-	err = os.MkdirAll(filepath.Join(cacheDir, "git-utils"), os.ModePerm)
-	if err != nil {
-		panic(err)
-	}
-
-	// Construct the cache file path
-	cachePath := filepath.Join(cacheDir, "git-utils", cacheFile)
-
-	return cachePath
+	return template
 }
 
-func readCachedVersion() (string, error) {
-	cachePath := getCacheFilePath()
+func ReadConfigFile() (Config, error) {
+	config := Config{}
+	filePath := GetConfigFilePath()
 
-	content, err := ioutil.ReadFile(cachePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
+		// If the file doesn't exist, create the default config file
 		if os.IsNotExist(err) {
-			// Cache file does not exist, return empty version
-			return "", nil
+			err = createDefaultConfigFile()
+			if err != nil {
+				return config, err
+			}
+			// Read the newly created config file
+			data, err = os.ReadFile(filePath)
+			if err != nil {
+				return config, err
+			}
+		} else {
+			return config, err
 		}
-		return "", err
 	}
 
-	cachedData := struct {
-		Version string    `json:"version"`
-		Time    time.Time `json:"time"`
-	}{}
-
-	err = json.Unmarshal(content, &cachedData)
+	err = json.Unmarshal(data, &config)
 	if err != nil {
-		return "", err
+		return config, err
 	}
 
-	return cachedData.Version, nil
+	return config, nil
 }
 
-func cacheVersion(version string, published time.Time) error {
-	cachePath := getCacheFilePath()
-
-	// Create the cache data
-	cachedData := struct {
-		Version string    `json:"version"`
-		Time    time.Time `json:"time"`
-	}{
-		Version: version,
-		Time:    published,
+func createDefaultConfigFile() error {
+	config := Config{
+		Tags: struct {
+			Messages map[string]string `json:"messages"`
+		}{
+			Messages: make(map[string]string),
+		},
 	}
-
-	// Marshal the cache data to JSON
-	content, err := json.Marshal(cachedData)
+	data, err := json.MarshalIndent(config, "", "    ")
 	if err != nil {
 		return err
 	}
 
-	// Write the cache data to the file
-	err = ioutil.WriteFile(cachePath, content, 0644)
+	filePath := GetConfigFilePath()
+	err = os.WriteFile(filePath, data, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func UpdateConfig(updateFunc func(config *Config)) error {
+	filePath := GetConfigFilePath()
+
+	// Read the existing config file
+	config, err := ReadConfigFile()
+	if err != nil {
+		return err
+	}
+
+	// Call the update function to modify the config
+	updateFunc(&config)
+
+	// Write the updated config back to the file
+	data, err := json.MarshalIndent(config, "", "    ")
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(filePath, data, 0644)
 	if err != nil {
 		return err
 	}
