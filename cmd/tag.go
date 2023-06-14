@@ -1,20 +1,44 @@
+/*
+Copyright 2023 Arbaaz Laskar
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 
+	"github.com/arzkar/git-utils/utils"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+
+type Config struct {
+	Tags struct {
+		Messages map[string]string `json:"messages"`
+	} `json:"tags"`
+}
 
 var tagCmd *cobra.Command
 
 func init() {
 	tagCmd = &cobra.Command{
 		Use:   "tag",
-		Short: "Create a new tag for the repository",
+		Short: "Create a new tag with custom message for the repository",
 		Run:   runTag,
 	}
 
@@ -35,39 +59,47 @@ func runTag(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	fmt.Println("dir", dir)
-	// Check if the tag message contains the @changelog keyword
-	if strings.Contains(tagMessage, "@changelog") {
-		// Retrieve the previous and new tags
-		prevTag, _ := getPreviousTag(dir)
-		newTag := tagName
+	// Read the config file
+	config, err := readConfigFile()
+	if err != nil {
+		fmt.Println("Failed to read config file:", err)
+		fmt.Println("Set the message values in the config file.\nRun: git-utils --config", err)
+		os.Exit(1)
+	}
 
-		// Construct the changelog URL
-		changelogURL := fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s", getUsername(dir), getRepositoryName(dir), prevTag, newTag)
+	// Check if the tag message matches a configured message
+	for key, message := range config.Tags.Messages {
+		if tagMessage == key {
+			prevTag, _ := getPreviousTag(dir)
+			newTag := tagName
 
-		// Construct the full changelog message
-		fullTagMessage := fmt.Sprintf("Full changelog: %s", changelogURL)
+			templateVariables := utils.CreateTemplateVariables(dir, prevTag, newTag, message)
+			tagMessage = parseTemplate(message, templateVariables)
 
-		// Open the default Git editor for tag message editing
-		editedTagMessage := openGitEditor(fullTagMessage)
-		if editedTagMessage != "" {
-			tagMessage = editedTagMessage
+			// Create the tag using the git command in the specified directory
+			cmdGit := exec.Command("git", "-C", dir, "tag", tagName, "-a", "-m", tagMessage)
+			cmdGit.Stdout = os.Stdout
+			cmdGit.Stderr = os.Stderr
+			err = cmdGit.Run()
+			if err != nil {
+				fmt.Println(color.RedString("Failed to create tag:", err))
+				return
+			}
+
+			fmt.Println(color.GreenString("Tag created successfully. Push it by running: git push --tags"))
+			return
 		}
 	}
 
-	// Create the tag using the git command in the specified directory
-	fmt.Println("tagName", tagName)
-	fmt.Println("tagMessage", tagMessage)
-	// cmdGit := exec.Command("git", "-C", dir, "tag", tagName, "-a", "-m", tagMessage)
-	// cmdGit.Stdout = os.Stdout
-	// cmdGit.Stderr = os.Stderr
-	// err := cmdGit.Run()
-	// if err != nil {
-	// 	fmt.Println("Failed to create tag:", err)
-	// 	return
-	// }
+	fmt.Println(color.RedString("No messages has been set in the config file. Set it up before running the tag command.") + color.GreenString("\nRun: git-utils --config"))
 
-	// fmt.Println("Tag created successfully. Push it by running: git push --tags")
+}
+
+func parseTemplate(template string, variables map[string]string) string {
+	for key, value := range variables {
+		template = strings.ReplaceAll(template, "{"+key+"}", value)
+	}
+	return template
 }
 
 func getPreviousTag(dir string) (string, error) {
@@ -81,139 +113,54 @@ func getPreviousTag(dir string) (string, error) {
 	return prevTag, nil
 }
 
-func getUsername(dir string) string {
-	cmd := exec.Command("git", "-C", dir, "config", "--get", "remote.origin.url")
-	output, err := cmd.Output()
+func readConfigFile() (Config, error) {
+	config := Config{}
+	filePath := utils.GetConfigFilePath()
+
+	data, err := os.ReadFile(filePath)
 	if err != nil {
-		fmt.Println("Failed to get remote URL:", err)
-		os.Exit(1)
-	}
-
-	url := strings.TrimSpace(string(output))
-	parts := strings.Split(url, "/")
-
-	remote := parts[len(parts)-2]
-	remote = strings.TrimSuffix(remote, ".git")
-
-	if len(parts) == 2 {
-		remoteParts := strings.Split(remote, ":")
-		if len(remoteParts) != 2 {
-			fmt.Println("Invalid remote URL format:", remote)
-			os.Exit(1)
-		}
-		return strings.TrimPrefix(remoteParts[1], "git@")
-	} else if len(parts) == 5 {
-		parts = strings.Split(remote, ":")
-		username := parts[0]
-		return username
-
-	} else {
-		fmt.Println("Invalid remote URL:", url)
-		os.Exit(1)
-	}
-	return ""
-}
-
-func getRepositoryName(dir string) string {
-	cmd := exec.Command("git", "-C", dir, "config", "--get", "remote.origin.url")
-	output, err := cmd.Output()
-	if err != nil {
-		fmt.Println("Failed to get remote URL:", err)
-		os.Exit(1)
-	}
-
-	url := strings.TrimSpace(string(output))
-	parts := strings.Split(url, "/")
-
-	remote := parts[len(parts)-1]
-	return strings.TrimSuffix(remote, ".git")
-}
-
-func openGitEditor(initialContent string) string {
-	editor := getGitEditor()
-	if editor == "" {
-		fmt.Println("No default Git editor found.")
-		setEditorOption := promptYesNo("Do you want to set the Git core editor now and continue editing or commit the default message? (y/n): ")
-		if setEditorOption == "y" {
-			setGitEditor()
-			editor = getGitEditor()
+		// If the file doesn't exist, create the default config file
+		if os.IsNotExist(err) {
+			err = createDefaultConfigFile()
+			if err != nil {
+				return config, err
+			}
+			// Read the newly created config file
+			data, err = os.ReadFile(filePath)
+			if err != nil {
+				return config, err
+			}
 		} else {
-			return initialContent
+			return config, err
 		}
 	}
 
-	tmpFile, err := os.CreateTemp("", "tagmessage")
+	err = json.Unmarshal(data, &config)
 	if err != nil {
-		fmt.Println("Failed to create temporary file for editing tag message:", err)
-		return initialContent
-	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err := tmpFile.Write([]byte(initialContent)); err != nil {
-		fmt.Println("Failed to write initial content to temporary file:", err)
-		return initialContent
+		return config, err
 	}
 
-	cmd := exec.Command(editor, tmpFile.Name())
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err = cmd.Run()
-	if err != nil {
-		fmt.Println("Failed to open tag message editor:", err)
-		return initialContent
-	}
-
-	editedContent, err := os.ReadFile(tmpFile.Name())
-	if err != nil {
-		fmt.Println("Failed to read edited tag message:", err)
-		return initialContent
-	}
-
-	return strings.TrimSpace(string(editedContent))
+	return config, nil
 }
 
-func getGitEditor() string {
-	cmd := exec.Command("git", "config", "--get", "core.editor")
-	output, err := cmd.Output()
+func createDefaultConfigFile() error {
+	config := Config{
+		Tags: struct {
+			Messages map[string]string `json:"messages"`
+		}{
+			Messages: make(map[string]string),
+		},
+	}
+	data, err := json.MarshalIndent(config, "", "    ")
 	if err != nil {
-		return ""
+		return err
 	}
-	return strings.TrimSpace(string(output))
-}
 
-func setGitEditor() {
-	fmt.Println("Please enter the command for the Git core editor:")
-	editor := promptInput("Editor command: ")
-
-	cmd := exec.Command("git", "config", "--global", "core.editor", editor)
-	err := cmd.Run()
+	filePath := utils.GetConfigFilePath()
+	err = os.WriteFile(filePath, data, 0644)
 	if err != nil {
-		fmt.Println("Failed to set Git core editor:", err)
-		return
+		return err
 	}
 
-	fmt.Println("Git core editor set successfully.")
-}
-
-func promptYesNo(prompt string) string {
-	var response string
-	for {
-		fmt.Print(prompt)
-		fmt.Scanln(&response)
-		response = strings.TrimSpace(strings.ToLower(response))
-		if response == "y" || response == "n" {
-			break
-		}
-		fmt.Println("Invalid input. Please enter 'y' or 'n'.")
-	}
-	return response
-}
-
-func promptInput(prompt string) string {
-	var input string
-	fmt.Print(prompt)
-	fmt.Scanln(&input)
-	return strings.TrimSpace(input)
+	return nil
 }

@@ -18,7 +18,7 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -32,7 +32,7 @@ const (
 	repoOwner      = "arzkar"
 	repoName       = "git-utils"
 	releasesAPI    = "https://api.github.com/repos/%s/%s/releases/latest"
-	currentVersion = "v0.3.3"
+	currentVersion = "v0.4.0"
 	cacheFile      = "git-utils-cache.json"
 )
 
@@ -64,7 +64,7 @@ func UpdateChecker() {
 		}
 		defer resp.Body.Close()
 
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			fmt.Println("Failed to read response body:", err)
 			return
@@ -119,7 +119,7 @@ func getCacheFilePath() string {
 func readCachedVersion() (string, error) {
 	cachePath := getCacheFilePath()
 
-	content, err := ioutil.ReadFile(cachePath)
+	file, err := os.Open(cachePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Cache file does not exist, return empty version
@@ -127,13 +127,14 @@ func readCachedVersion() (string, error) {
 		}
 		return "", err
 	}
+	defer file.Close()
 
 	cachedData := struct {
 		Version string    `json:"version"`
 		Time    time.Time `json:"time"`
 	}{}
 
-	err = json.Unmarshal(content, &cachedData)
+	err = json.NewDecoder(file).Decode(&cachedData)
 	if err != nil {
 		return "", err
 	}
@@ -144,6 +145,12 @@ func readCachedVersion() (string, error) {
 func cacheVersion(version string, published time.Time) error {
 	cachePath := getCacheFilePath()
 
+	file, err := os.Create(cachePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
 	// Create the cache data
 	cachedData := struct {
 		Version string    `json:"version"`
@@ -153,14 +160,8 @@ func cacheVersion(version string, published time.Time) error {
 		Time:    published,
 	}
 
-	// Marshal the cache data to JSON
-	content, err := json.Marshal(cachedData)
-	if err != nil {
-		return err
-	}
-
-	// Write the cache data to the file
-	err = ioutil.WriteFile(cachePath, content, 0644)
+	// Encode the cache data to JSON and write it to the file
+	err = json.NewEncoder(file).Encode(&cachedData)
 	if err != nil {
 		return err
 	}
