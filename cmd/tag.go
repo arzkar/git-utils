@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -27,18 +26,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type Config struct {
-	Tags struct {
-		Messages map[string]string `json:"messages"`
-	} `json:"tags"`
-}
-
 var tagCmd *cobra.Command
 
 func init() {
 	tagCmd = &cobra.Command{
 		Use:   "tag",
-		Short: "Create a new tag with custom message for the repository",
+		Short: "Create a new tag with a custom message for the repository",
 		Run:   runTag,
 	}
 
@@ -60,7 +53,7 @@ func runTag(cmd *cobra.Command, args []string) {
 	}
 
 	// Read the config file
-	config, err := readConfigFile()
+	config, err := utils.ReadConfigFile()
 	if err != nil {
 		fmt.Println("Failed to read config file:", err)
 		fmt.Println("Set the message values in the config file.\nRun: git-utils --config", err)
@@ -68,38 +61,33 @@ func runTag(cmd *cobra.Command, args []string) {
 	}
 
 	// Check if the tag message matches a configured message
-	for key, message := range config.Tags.Messages {
-		if tagMessage == key {
-			prevTag, _ := getPreviousTag(dir)
-			newTag := tagName
-
-			templateVariables := utils.CreateTemplateVariables(dir, prevTag, newTag, message)
-			tagMessage = parseTemplate(message, templateVariables)
-
-			// Create the tag using the git command in the specified directory
-			cmdGit := exec.Command("git", "-C", dir, "tag", tagName, "-a", "-m", tagMessage)
-			cmdGit.Stdout = os.Stdout
-			cmdGit.Stderr = os.Stderr
-			err = cmdGit.Run()
-			if err != nil {
-				fmt.Println(color.RedString("Failed to create tag:", err))
-				return
-			}
-
-			fmt.Println(color.GreenString("Tag created successfully. Push it by running: git push --tags"))
-			return
-		}
+	message, ok := config.Tags.Messages[tagMessage]
+	if !ok {
+		fmt.Println(color.RedString("No message has been set in the config file. Set it up before running the tag command.") + color.GreenString("\nRun: git-utils --config"))
+		return
 	}
 
-	fmt.Println(color.RedString("No messages has been set in the config file. Set it up before running the tag command.") + color.GreenString("\nRun: git-utils --config"))
-
-}
-
-func parseTemplate(template string, variables map[string]string) string {
-	for key, value := range variables {
-		template = strings.ReplaceAll(template, "{"+key+"}", value)
+	prevTag, err := getPreviousTag(dir)
+	if err != nil {
+		fmt.Println(color.RedString("Failed to get the previous tag:", err))
+		return
 	}
-	return template
+
+	newTag := tagName
+	templateVariables := utils.CreateTemplateVariables(dir, prevTag, newTag, message)
+	tagMessage = utils.ParseTemplate(message, templateVariables)
+
+	// Create the tag using the git command in the specified directory
+	cmdGit := exec.Command("git", "-C", dir, "tag", tagName, "-a", "-m", tagMessage)
+	cmdGit.Stdout = os.Stdout
+	cmdGit.Stderr = os.Stderr
+	err = cmdGit.Run()
+	if err != nil {
+		fmt.Println(color.RedString("Failed to create tag:", err))
+		return
+	}
+
+	fmt.Println(color.GreenString("Tag created successfully. Push it by running: git push --tags"))
 }
 
 func getPreviousTag(dir string) (string, error) {
@@ -111,56 +99,4 @@ func getPreviousTag(dir string) (string, error) {
 
 	prevTag := strings.TrimSpace(string(output))
 	return prevTag, nil
-}
-
-func readConfigFile() (Config, error) {
-	config := Config{}
-	filePath := utils.GetConfigFilePath()
-
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		// If the file doesn't exist, create the default config file
-		if os.IsNotExist(err) {
-			err = createDefaultConfigFile()
-			if err != nil {
-				return config, err
-			}
-			// Read the newly created config file
-			data, err = os.ReadFile(filePath)
-			if err != nil {
-				return config, err
-			}
-		} else {
-			return config, err
-		}
-	}
-
-	err = json.Unmarshal(data, &config)
-	if err != nil {
-		return config, err
-	}
-
-	return config, nil
-}
-
-func createDefaultConfigFile() error {
-	config := Config{
-		Tags: struct {
-			Messages map[string]string `json:"messages"`
-		}{
-			Messages: make(map[string]string),
-		},
-	}
-	data, err := json.MarshalIndent(config, "", "    ")
-	if err != nil {
-		return err
-	}
-
-	filePath := utils.GetConfigFilePath()
-	err = os.WriteFile(filePath, data, 0644)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }

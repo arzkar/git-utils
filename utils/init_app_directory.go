@@ -31,7 +31,7 @@ func initAppDirectory() {
 	if _, err := os.Stat(appDir); os.IsNotExist(err) {
 		err := os.MkdirAll(appDir, os.ModePerm)
 		if err != nil {
-			fmt.Println("Failed to create app directory:", err)
+			fmt.Println("Failed to create the app directory:", err)
 			os.Exit(1)
 		}
 
@@ -42,7 +42,7 @@ func initAppDirectory() {
 func GetAppDir() string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println("Failed to get user's home directory:", err)
+		fmt.Println("Failed to get the user's home directory:", err)
 		os.Exit(1)
 	}
 
