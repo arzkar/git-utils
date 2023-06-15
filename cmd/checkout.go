@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/arzkar/git-utils/utils"
 	"github.com/fatih/color"
@@ -90,12 +91,59 @@ func runCheckout(cmd *cobra.Command, args []string) {
 
 func checkoutBranch(path string, branch string) error {
 	fmt.Printf("Checking out branch '%s' in repository '%s'\n", branch, path)
-	cmd := exec.Command("git", "-C", path, "checkout", "--track", fmt.Sprintf("origin/%s", branch))
-	output, err := cmd.CombinedOutput()
+	cmd := exec.Command("git", "-C", path, "branch", "--list", fmt.Sprintf("%s*", branch))
+	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("failed to checkout branch '%s' in repository '%s': %s\n%s", branch, path, err, string(output))
+		return fmt.Errorf("failed to list matching branches in repository '%s': %s\n%s", path, err, string(output))
 	}
 
-	fmt.Printf(color.GreenString("Successfully checked out branch '%s' in repository '%s'\n\n", branch, path))
+	branches := parseBranches(output, branch)
+	if len(branches) == 0 {
+		return fmt.Errorf("no matching branches found in repository '%s'", path)
+	}
+
+	// Display menu to choose between branches
+	choice, err := displayBranchMenu(branches)
+	if err != nil {
+		return fmt.Errorf("failed to display branch menu: %s", err)
+	}
+
+	selectedBranch := branches[choice]
+	cmd = exec.Command("git", "-C", path, "checkout", selectedBranch)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to checkout branch '%s' in repository '%s': %s\n%s", selectedBranch, path, err, string(output))
+	}
+
+	fmt.Printf(color.GreenString("Successfully checked out branch '%s' in repository '%s'\n\n", selectedBranch, path))
 	return nil
+}
+
+// parseBranches parses the output of the "git branch --list" command
+func parseBranches(output []byte, branch string) []string {
+	var branches []string
+	for _, line := range strings.Split(string(output), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" && strings.HasPrefix(line, fmt.Sprintf("origin/%s", branch)) {
+			branches = append(branches, line)
+		}
+	}
+	return branches
+}
+
+// displayBranchMenu displays a menu with the list of branches and returns the selected choice
+func displayBranchMenu(branches []string) (int, error) {
+	fmt.Println("Choose a branch:")
+	for i, branch := range branches {
+		fmt.Printf("[%d] %s\n", i+1, branch)
+	}
+
+	fmt.Print("Enter your choice: ")
+	var choice int
+	_, err := fmt.Scanln(&choice)
+	if err != nil || choice < 1 || choice > len(branches) {
+		return 0, fmt.Errorf("invalid choice")
+	}
+
+	return choice - 1, nil
 }
