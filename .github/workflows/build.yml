@@ -9,7 +9,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    if: github.actor == 'arzkar'
+    if: |
+      github.actor == 'arzkar' &&
+      !contains(github.ref, 'refs/heads/')
 
     steps:
       - name: Checkout code
@@ -27,20 +29,27 @@ jobs:
         with:
           node-version: "16"
 
+      - name: Check if tag exists
+        run: |
+          git fetch --tags
+          tag_exists=$(git tag --list "v$(cat .git-utils-bump.cfg | grep -Po '(?<=current_version = ).*')")
+          if [ -n "$tag_exists" ]; then
+            echo "Tag already exists for current version. Aborting release."
+            exit 0
+          fi
+
       - name: Build and package binaries
         run: |
           # Build binaries for different platforms
           env GOOS=windows GOARCH=amd64 go build -o git-utils-${{ github.event.ref }}-windows/git-utils.exe
           env GOOS=darwin GOARCH=amd64 go build -o git-utils-${{ github.event.ref }}-apple/git-utils
           env GOOS=linux GOARCH=amd64 go build -o git-utils-${{ github.event.ref }}-linux/git-utils
-
       - name: Copy README and LICENSE to Binaries
         run: |
           for dir in git-utils-${{ github.event.ref }}-windows git-utils-${{ github.event.ref }}-apple git-utils-${{ github.event.ref }}-linux; do
             cp README.md $dir/
             cp LICENSE $dir/
           done
-
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
