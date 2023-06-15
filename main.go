@@ -18,5 +18,6 @@ package main
 import "github.com/arzkar/git-utils/cmd"
 
 func main() {
+	// hey
 	cmd.Execute()
 }
