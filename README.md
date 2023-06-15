@@ -10,6 +10,7 @@ A CLI for performing various operations on git repositories
 - `grep`: Search for a pattern in file contents across multiple repositories.
 - `checkout`: Checkout a branch for all the repositories at once.
 - `tag`: Use custom tag messages for git repositories
+- `bump`: Version bump the version
 
 # Installation
 
@@ -30,7 +31,7 @@ go install github.com/arzkar/git-utils@latest
 
 ```
 > git-utils
-git-utils v0.4.0
+git-utils v0.5.0
 Copyright (c) Arbaaz Laskar <arzkar.dev@gmail.com>
 
 A CLI for performing various operations on git repositories
@@ -39,13 +40,14 @@ Usage:
   git-utils [command]
 
 Available Commands:
+  bump        Version bump the version
   checkout    Checkout a branch in all repositories
   completion  Generate the autocompletion script for the specified shell
   fetch       Fetch all or specified branches
   grep        Search for a pattern in files
   help        Help about any command
   pull        Pull all or specified branches
-  tag         Create a new tag with custom message for the repository
+  tag         Create a new tag with a custom message for the repository
 
 Flags:
       --config   Show app config
@@ -127,3 +129,35 @@ Sample `config.json`:
 ```
 
 Tag Templates variables available: `repo_owner, repo_name, prevTag, newTag`
+
+### Bump
+
+The `bump` command bumps the version set in the `.git-utils-bump.cfg` and search & replaces the version for the files set in the config file using the subcommands: `major`, `minor` & `patch`
+
+Command:
+`git-utils bump <command>`
+
+Example:
+`git-utils bump minor`
+
+Sample `.git-utils.bump.cfg:
+
+```yml
+[bumpversion]
+current_version = 0.4.0
+commit          = True
+tag             = True
+tag_format      = v{tag}
+
+[bumpversion:file:cmd/root.go]
+search  = git-utils v{current_version}
+replace = git-utils v{new_version}
+
+[bumpversion:file:README.md]
+search  = git-utils v{current_version}
+replace = git-utils v{new_version}
+
+[bumpversion:file:utils/update_checker.go]
+search  = v{current_version}
+replace = v{new_version}
+```

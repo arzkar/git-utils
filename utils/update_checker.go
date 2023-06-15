@@ -31,7 +31,7 @@ const (
 	repoOwner      = "arzkar"
 	repoName       = "git-utils"
 	releasesAPI    = "https://api.github.com/repos/%s/%s/releases/latest"
-	currentVersion = "v0.4.0"
+	currentVersion = "v0.5.0"
 	configFile     = "config.json"
 	updateInterval = 24 * time.Hour
 )

@@ -56,3 +56,8 @@ func GetConfigFilePath() string {
 	appDir := GetAppDir()
 	return filepath.Join(appDir, "config.json")
 }
+
+func IsGitRepository(path string) bool {
+	_, err := os.Stat(filepath.Join(path, ".git"))
+	return err == nil
+}
