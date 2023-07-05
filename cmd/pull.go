@@ -103,7 +103,8 @@ func pullRepository(path string, pull string, dryRun bool) error {
 	} else {
 		branches := strings.Split(pull, ",")
 		for _, branch := range branches {
-			err := pullBranch(path, branch, dryRun)
+			localBranch := strings.TrimSpace(strings.TrimPrefix(branch, "origin/"))
+			err := pullBranch(path, localBranch, branch, dryRun)
 			if err != nil {
 				return err
 			}
@@ -122,7 +123,8 @@ func pullAllBranches(path string, dryRun bool) error {
 
 	branches := strings.Split(strings.TrimSpace(string(output)), "\n")
 	for _, branch := range branches {
-		err := pullBranch(path, branch, dryRun)
+		localBranch := strings.TrimSpace(strings.TrimPrefix(branch, "origin/"))
+		err := pullBranch(path, localBranch, branch, dryRun)
 		if err != nil {
 			return err
 		}
@@ -131,29 +133,29 @@ func pullAllBranches(path string, dryRun bool) error {
 	return nil
 }
 
-func pullBranch(path string, branch string, dryRun bool) error {
-	fmt.Printf("Pulling branch '%s' in repository '%s'\n", branch, path)
-	execDryRun(dryRun, path, branch)
+func pullBranch(path string, localBranch string, remoteBranch string, dryRun bool) error {
+	fmt.Printf("Pulling branch '%s' in repository '%s'\n", localBranch, path)
+	execDryRun(dryRun, path, localBranch)
 
 	// Show the changes made by the pull operation
-	cmd := exec.Command("git", "-C", path, "diff", "--stat", branch+"..origin/"+branch)
+	cmd := exec.Command("git", "-C", path, "diff", "--stat", localBranch+"..origin/"+remoteBranch)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to get changes made by pull for branch '%s' in repository '%s': %w\n%s", branch, path, err, string(output))
+		return fmt.Errorf("failed to get changes made by pull for branch '%s' in repository '%s': %w\n%s", localBranch, path, err, string(output))
 	}
-
 	if len(output) > 0 {
-		fmt.Println("Changes made by pull:")
+		fmt.Println("Diff: " + localBranch + "..origin/" + remoteBranch)
 		colorizedOutput := utils.ColorizeDiffStat(string(output))
 		fmt.Println(colorizedOutput)
 
-		cmd = exec.Command("git", "-C", path, "pull")
+		cmd = exec.Command("git", "-C", path, "pull", "origin", remoteBranch+":"+localBranch)
 		output, err = cmd.CombinedOutput()
+		// println(string(output))
 		if err != nil {
-			return fmt.Errorf("failed to pull branch '%s' in repository '%s': %w\n%s", branch, path, err, string(output))
+			return fmt.Errorf("failed to pull branch '%s' in repository '%s': %w\n%s", localBranch, path, err, string(output))
 		}
 
-		fmt.Printf(color.GreenString("Successfully pulled branch '%s' in repository '%s'\n\n", branch, path))
+		fmt.Printf(color.GreenString("Successfully pulled branch '%s' in repository '%s'\n\n", localBranch, path))
 	} else {
 		fmt.Println(color.GreenString("No changes made by pull\n"))
 	}
