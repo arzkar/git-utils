@@ -1,5 +1,8 @@
 <h1 align="center">git-utils</h1>
 
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/arzkar)
+
 A CLI for performing various operations on git repositories
 <br>
 
